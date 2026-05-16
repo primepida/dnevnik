@@ -77,8 +77,8 @@ async function saveState(){try{await api('PUT','/api/state',{data:state})}catch(
 function applyTheme(){document.documentElement.classList.toggle('light',localStorage.getItem('marathon-theme')==='light')}
 function toggleTheme(){const l=document.documentElement.classList.toggle('light');localStorage.setItem('marathon-theme',l?'light':'dark')}
 
-function showAuth(){document.getElementById('auth-screen').hidden=false;document.getElementById('app').hidden=true}
-function showApp(){document.getElementById('auth-screen').hidden=true;document.getElementById('app').hidden=false}
+function showAuth(){const a=document.getElementById('auth-screen'),b=document.getElementById('app');a.hidden=false;a.style.display='flex';b.hidden=true;b.style.display='none'}
+function showApp(){const a=document.getElementById('auth-screen'),b=document.getElementById('app');a.hidden=true;a.style.display='none';b.hidden=false;b.style.display='grid'}
 
 let authMode='login';
 function setAuthMode(m){
