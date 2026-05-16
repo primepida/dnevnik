@@ -1,72 +1,97 @@
-# Марафон ЕГЭ — сервер
+# Марафон ЕГЭ — сервер (v2, на Postgres)
 
-Многопользовательский план подготовки к ЕГЭ с авторизацией, таблицей рекордов и публичными профилями. Node.js + SQLite + Express.
+Многопользовательский план подготовки к ЕГЭ. Node.js + Postgres + Express. Никаких Volume — данные в облачной БД.
 
-## Что внутри
+## Что нужно сделать на Railway
 
-- Регистрация и вход по логину и паролю (bcrypt-хеш)
-- Защита от брута: 5 неудачных попыток за сутки = блок аккаунта на 24 ч; 20 неудач за час с одного IP = блок IP на час
-- Сессии в HttpOnly-cookie, действительны 30 дней
-- Личное состояние (события, задачи, темы, методы, заметки, проблемы, цели) у каждого пользователя своё
-- Пробники в отдельной таблице, можно выводить общую таблицу рекордов
-- API для всех операций
-- Калькулятор прогресса по темам, оценка остатка времени
-- Публичные профили: чужие пользователи видят твой прогресс и пробники, но не приватные заметки
+### Шаг 1. Завести бесплатную базу
+
+**Вариант A — Neon (рекомендую, навсегда бесплатно):**
+
+1. Зайди на https://neon.tech, зарегистрируйся через GitHub.
+2. Create Project → дай ему имя.
+3. На главной странице проекта будет блок **Connection string** → нажми **Copy**. Это длинная строка вида `postgresql://user:password@ep-xxxx.us-east-1.aws.neon.tech/dbname?sslmode=require`.
+
+**Вариант B — Railway Postgres** (кушает $5-кредит):
+
+В проекте на Railway: ⌘K → **Database → PostgreSQL**. Railway сам подключит его к твоему сервису через переменную `DATABASE_URL`.
+
+### Шаг 2. Прописать переменные в Railway
+
+Открой свой сервис `dnevnik` → вкладка **Variables** → **+ New Variable**. Добавь:
+
+```
+DATABASE_URL = <строка подключения из Neon (если Neon)>
+NODE_ENV     = production
+ADMIN_USERNAME = <твой логин, в нижнем регистре>
+```
+
+Если ты выбрал Вариант B (Railway Postgres), `DATABASE_URL` появится сам.
+
+`ADMIN_USERNAME` — это твой будущий логин. Зарегайся под ним первым, и ты получишь админ-права (сможешь удалять других пользователей).
+
+### Шаг 3. Залить новые файлы
+
+Замени в GitHub-репозитории старые `server.js` и `package.json` на новые из этого архива. Railway увидит push и сам передеплоит.
+
+### Шаг 4. Проверить
+
+Открой `https://<твой-домен>/api/health` — должно вернуть `{"status":"ok","db":true,"users":0,...}`. Это значит сервер видит базу.
+
+Потом открой основной адрес — должен показаться экран входа. Зарегистрируйся.
+
+## Что починено в v2
+
+- **Cookie на Railway**: убрал флаг `secure`, который ломался в проксированной HTTPS-среде. Сессия теперь нормально сохраняется.
+- **База в Postgres**: больше не нужен Volume, данные переживают любые редеплои.
+- **`/api/health`**: диагностический эндпойнт, видит ли сервер базу.
+- **Логи ошибок**: при падении регистрации/входа в Railway → Logs будет видна причина.
+
+## Что добавлено в API
+
+- `lastSeen` в каждом пользователе (обновляется на любой авторизованный запрос). Можно показать «онлайн / был N минут назад».
+- `GET /api/leaderboard?type=topics&subject=…` — рейтинг по пройденным темам (раньше был только по пробникам).
+- `GET /api/users/:username` теперь возвращает `taskProgress.{russian,math,informatics}.doneList` — список номеров и названий пройденных заданий.
+- `DELETE /api/admin/users/:username` — удаление пользователя. Доступно только тому, чей логин совпадает с `ADMIN_USERNAME`.
+
+Фронтенд для этих фич я добавлю в следующей версии — пока бэкенд их уже отдаёт, можешь дёргать вручную или через UI как есть.
 
 ## Локально
 
 ```bash
 npm install
-npm start
+DATABASE_URL=postgresql://... ADMIN_USERNAME=test npm start
 ```
 
-Сервер поднимется на `http://localhost:3000`. База — SQLite-файл в `./data/marathon.db`. Удалишь — данные пропадут.
+Открой http://localhost:3000.
 
-## Деплой на Railway
+## Endpoints
 
-1. Сделай git-репо и запушь проект на GitHub.
-2. На railway.app: New Project → Deploy from GitHub repo → выбери репо.
-3. Railway сам определит Node-проект и запустит `npm install && npm start`.
-4. **Важно — постоянный том для базы.** В настройках сервиса добавь Volume:
-   - Mount path: `/app/data`
-5. В Variables добавь:
-   - `NODE_ENV=production`
-   - `DATA_DIR=/app/data`
-6. Дождись деплоя, открой публичный URL. Это твой адрес — отдавай другу.
-
-Без тома SQLite-файл уйдёт при каждом перезапуске сервиса.
-
-## Endpoints (вкратце)
-
-| Метод | Путь | Что делает |
+| Метод | Путь | Что |
 |---|---|---|
-| POST | /api/register | { username, password, displayName } |
+| GET | /api/health | проверка БД |
+| POST | /api/register | { username, password, displayName? } |
 | POST | /api/login | { username, password } |
 | POST | /api/logout | — |
-| GET | /api/me | текущий пользователь + state + mocks |
-| PUT | /api/state | сохранить state (events, tasks, todos, problems, goals) |
+| GET | /api/me | свой state + пробники |
+| PUT | /api/state | сохранить state |
 | PUT | /api/profile | { displayName?, bio?, isPublic? } |
 | POST | /api/password | { current, next } |
 | POST/PUT/DELETE | /api/mocks[/:id] | CRUD пробников |
-| GET | /api/leaderboard?subject= | топ-100 по предмету или overall |
-| GET | /api/users?q= | поиск пользователей |
-| GET | /api/users/:username | публичный профиль |
+| GET | /api/leaderboard?subject=&type= | type: mocks или topics |
+| GET | /api/users?q= | поиск, отсортировано по last_seen |
+| GET | /api/users/:username | публичный профиль + doneList |
+| DELETE | /api/admin/users/:username | админ-удаление |
 
-## Безопасность
+## Защита
 
-- Пароли хешированы bcrypt (10 раундов)
-- Cookies httpOnly + sameSite=lax + secure в production
-- Защита от брута на уровне аккаунта и IP
-- Лимит на размер state — 4 МБ
-- SQL только через prepared statements
+- Пароли — bcrypt 10 раундов
+- HttpOnly + SameSite=Lax cookie, 30 дней
+- Брут: 5 фейлов = блок аккаунта 24ч; 20 фейлов с IP за час = блок IP на час
+- 4 MB лимит на размер state, prepared statements везде
 
-## Структура
+## Если что-то не так — что смотреть
 
-```
-.
-├── server.js          # Express + SQLite + auth + API
-├── package.json
-├── public/
-│   └── index.html     # SPA: auth-экран и приложение
-└── data/              # SQLite база (создаётся автоматически)
-```
+1. Открой `/api/health` — если 500, значит проблема с подключением к Postgres. Проверь `DATABASE_URL`.
+2. В Railway сервис → Logs — там будут ошибки сервера.
+3. В браузере DevTools → Network — смотри что отвечает `/api/register` или `/api/login`.

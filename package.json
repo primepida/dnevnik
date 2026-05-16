@@ -1,7 +1,7 @@
 {
   "name": "marathon-ege-server",
-  "version": "1.0.0",
-  "description": "Марафон ЕГЭ — многопользовательский сервер с авторизацией, таблицей рекордов и соц-возможностями",
+  "version": "2.0.0",
+  "description": "Марафон ЕГЭ — сервер на Postgres",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,7 @@
   },
   "engines": { "node": ">=18" },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
+    "pg": "^8.13.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "express": "^4.19.2"
